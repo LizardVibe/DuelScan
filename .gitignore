@@ -1,0 +1,8 @@
+.venv/
+data/
+scans/
+__pycache__/
+*.log
+build/
+dist/
+packaging/Output/
