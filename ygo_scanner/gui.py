@@ -17,7 +17,8 @@ from PySide6.QtCore import QObject, QSize, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QImage, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
-                               QLineEdit, QMainWindow, QPushButton, QScrollArea, QSizePolicy, QSlider, QTableWidget,
+                               QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QPushButton, QScrollArea, QSizePolicy, QSlider,
+                               QTableWidget,
                                QTableWidgetItem, QTabWidget, QToolBar, QVBoxLayout, QWidget)
 
 from . import database, offline_prices
@@ -281,6 +282,51 @@ class PriceUpdater(QObject):
             self.finished.emit(False, str(e), fresh)
 
 
+# --------------------------------------------------------------------------- Manuelle Suche
+class SearchDialog(QDialog):
+    """Karte per Name suchen, wenn die Erkennung nicht weiterhilft."""
+
+    def __init__(self, parent, cards: list[dict]):
+        super().__init__(parent)
+        self.setWindowTitle(t("search_title"))
+        self.setMinimumSize(520, 460)
+        self.cards = sorted(cards, key=lambda c: c["name"])
+        self.chosen: dict | None = None
+        lay = QVBoxLayout(self)
+        self.edit = QLineEdit()
+        self.edit.setPlaceholderText(t("search_placeholder"))
+        self.list = QListWidget()
+        self.list.setIconSize(QSize(40, 40))
+        self.hint = QLabel(t("search_hint"), objectName="sub", wordWrap=True)
+        for w in (self.edit, self.list, self.hint):
+            lay.addWidget(w)
+        self.edit.textChanged.connect(self._filter)
+        self.edit.returnPressed.connect(self._take_first)
+        self.list.itemActivated.connect(self._take)
+
+    def _filter(self, text: str):
+        self.list.clear()
+        words = text.lower().split()
+        if not words or len(text.strip()) < 2:
+            return
+        hits = [c for c in self.cards if all(w in c["name"].lower() for w in words)]
+        for c in hits[:60]:
+            it = QListWidgetItem(QIcon(str(ART_DIR / f"{c['card_images'][0]['id']}.jpg")),
+                                 f"{c['name']}   ·   {eur(price(c, 'cardmarket_price'))}")
+            it.setData(Qt.UserRole, c)
+            self.list.addItem(it)
+        if hits:
+            self.list.setCurrentRow(0)
+
+    def _take_first(self):
+        if self.list.count():
+            self._take(self.list.currentItem() or self.list.item(0))
+
+    def _take(self, item: QListWidgetItem):
+        self.chosen = item.data(Qt.UserRole)
+        self.accept()
+
+
 # --------------------------------------------------------------------------- Einstellungen
 class SettingsDialog(QDialog):
     def __init__(self, parent, settings: dict):
@@ -336,6 +382,14 @@ class SettingsDialog(QDialog):
         self.live_min.setValue(float(settings.get("live_price_min_eur", 0.85)))
         form.addRow(t("live_min"), self.live_min)
 
+        self.forget_requested = False
+        learned = int(settings.get("_learned_count", 0))
+        forget_btn = QPushButton(t("forget_btn", n=learned))
+        forget_btn.setEnabled(learned > 0)
+        forget_btn.clicked.connect(self._request_forget)
+        form.addRow(t("learned_label"), forget_btn)
+        form.addRow("", QLabel(t("learned_hint"), objectName="sub", wordWrap=True))
+
         db_btn = QPushButton(t("update_db_btn"))
         db_btn.clicked.connect(self._request_db_update)
         form.addRow(t("card_db"), db_btn)
@@ -351,6 +405,10 @@ class SettingsDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+    def _request_forget(self):
+        self.forget_requested = True
+        self.sender().setEnabled(False)
 
     def _request_db_update(self):
         self.update_db_requested = True
@@ -392,6 +450,8 @@ class MainWindow(QMainWindow):
         self.in_list = False                   # aktuelle Karte steht schon in der Scan-Liste
         self.scan_list: list[Candidate] = []
         self.best_sharp = 0.0
+        self.scan_img: np.ndarray | None = None   # entzerrtes Kamerabild der aktuellen Karte (zum Lernen)
+        self.learned_key: str | None = None       # gelernte Referenz der aktuellen Karte (für Korrekturen)
 
         self._build_ui()
         self._build_shortcuts()
@@ -559,6 +619,10 @@ class MainWindow(QMainWindow):
             b.hide()
             right.addWidget(b)
             self.cand_buttons.append(b)
+        search_btn = QPushButton(t("search_btn"), objectName="cand")
+        search_btn.setFocusPolicy(Qt.NoFocus)
+        search_btn.clicked.connect(self.search_card)
+        right.addWidget(search_btn)
 
         row = QHBoxLayout()
         accept_btn = QPushButton(t("accept_btn"), objectName="primary")
@@ -573,8 +637,8 @@ class MainWindow(QMainWindow):
         right.addLayout(row)
 
         self.tabs = QTabWidget()
-        self.scan_table = self._make_table([t("col_card"), t("col_rarity"), "Cardmarket", "TCGplayer",
-                                            t("confidence")])
+        self.scan_table = self._make_table([t("col_card"), t("col_rarity"), t("col_count"), "Cardmarket",
+                                            "TCGplayer"])
         self.scan_total = QLabel(objectName="sub")
         self.coll_table = self._make_table([t("col_card"), t("col_rarity"), t("col_count"), "Cardmarket",
                                             "TCGplayer", t("col_value")])
@@ -587,7 +651,7 @@ class MainWindow(QMainWindow):
             v.addWidget(table)
             v.addWidget(total)
             self.tabs.addTab(w, title)
-        self.scan_table.cellClicked.connect(lambda r, c: self._open_price(self.scan_list[r], c, 2, 3))
+        self.scan_table.cellClicked.connect(lambda r, c: self._open_price(self._scan_rows[r][0], c, 3, 4))
         self.coll_table.cellClicked.connect(self._coll_clicked)
         self.tabs.setMinimumHeight(220)
         right.addWidget(self.tabs, 1)
@@ -620,7 +684,8 @@ class MainWindow(QMainWindow):
         for key, fn in (("1", lambda: self.choose(0)), ("2", lambda: self.choose(1)), ("3", lambda: self.choose(2)),
                         ("Space", lambda: self.choose(self.chosen if self.chosen is not None else 0)),
                         ("S", self.add_to_collection), ("R", self.rescan), ("L", self.load_live),
-                        ("Ctrl+Z", self.undo), ("Delete", self.remove_from_collection)):
+                        ("Ctrl+Z", self.undo), ("Delete", self.remove_from_collection),
+                        ("F", self.search_card), ("Ctrl+F", self.search_card)):
             QShortcut(QKeySequence(key), self, activated=fn)
 
     # ---------------------------------------------------------------- Ereignisse
@@ -648,8 +713,7 @@ class MainWindow(QMainWindow):
         self.settings["preview_zoom"] = v / 10
         save_settings(self.settings)
 
-    def _on_scanned(self, cands: list[Candidate], _card_img):
-        self.candidates, self.chosen, self.in_list = cands, None, False
+    def _fill_candidates(self, cands: list[Candidate]):
         for i, b in enumerate(self.cand_buttons):
             if i < len(cands):
                 c = cands[i]
@@ -659,6 +723,11 @@ class MainWindow(QMainWindow):
                 b.show()
             else:
                 b.hide()
+
+    def _on_scanned(self, cands: list[Candidate], card_img):
+        self.candidates, self.chosen, self.in_list = cands, None, False
+        self.scan_img, self.learned_key = card_img, None
+        self._fill_candidates(cands)
         if cands[0].confidence >= AUTO_ACCEPT_CONFIDENCE:
             self.choose(0, auto=True)
         else:
@@ -693,9 +762,44 @@ class MainWindow(QMainWindow):
         alarm = self.show_card(c)
         self._mark_chosen()
         self.set_status(t("status_recognized" if auto else "status_accepted", name=c.name))
+        if not auto:
+            self._learn(c)
         play_sound(alarm)
         if self.auto_coll.isChecked() and auto:
             self.add_to_collection()
+
+    def _learn(self, c: Candidate, force: bool = False):
+        """Unsichere oder korrigierte Karte merken: Das Kamerabild wird zur zusätzlichen Referenz.
+        Sichere automatische Treffer lernen wir nicht - die erkennt das Programm ja schon."""
+        matcher = self.worker.matcher if self.worker is not None else None
+        if matcher is None or self.scan_img is None:
+            return
+        best = self.candidates[0]
+        if not force and c is best and best.confidence >= AUTO_ACCEPT_CONFIDENCE and self.learned_key is None:
+            return
+        old, img, image_id = self.learned_key, self.scan_img, c.image_id
+        self.learned_key = "pending"
+
+        def work():
+            matcher.forget(old if old != "pending" else None)
+            self.learned_key = matcher.learn(image_id, img)
+        threading.Thread(target=work, daemon=True).start()
+        self.set_status(t("status_accepted", name=c.name) + t("status_learned"))
+
+    def search_card(self):
+        dlg = SearchDialog(self, list(self._cards_by_id.values()))
+        dlg.edit.setFocus()
+        if dlg.exec() != QDialog.Accepted or not dlg.chosen:
+            return
+        card = dlg.chosen
+        found = Candidate(card, card["card_images"][0]["id"], 0.0, 1.0)
+        if not self.candidates:            # noch nichts gescannt: einfach in die Liste aufnehmen
+            self.scan_img = None
+        self.candidates = [found] + [c for c in self.candidates if c.card["id"] != card["id"]][:2]
+        self._fill_candidates(self.candidates)
+        self.chosen = None
+        self.choose(0)
+        self._learn(found, force=True)   # gesuchte Karte immer lernen - genau da hat die Erkennung versagt
 
     def add_to_collection(self):
         if not self.candidates:
@@ -727,6 +831,10 @@ class MainWindow(QMainWindow):
     def undo(self):
         if self.scan_list:
             removed = self.scan_list.pop()
+            if removed in self.candidates and self.learned_key not in (None, "pending") and self.worker \
+                    and self.worker.matcher:
+                self.worker.matcher.forget(self.learned_key)
+                self.learned_key = None
             self.in_list = False
             self.update_scan_table()
             self.set_status(t("status_removed_list", name=removed.name))
@@ -740,9 +848,9 @@ class MainWindow(QMainWindow):
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f, delimiter=";")
             w.writerow(t("csv_header").split(";"))
-            for c in self.scan_list:
-                w.writerow([c.name, c.card.get("type", ""), c.rarity or "", price(c.card, "cardmarket_price"),
-                            c.rarity_price or price(c.card, "tcgplayer_price"), f"{c.confidence:.0%}"])
+            for c, n in self._grouped_scans():
+                w.writerow([n, c.name, c.card.get("type", ""), c.rarity or "", price(c.card, "cardmarket_price"),
+                            c.rarity_price or price(c.card, "tcgplayer_price")])
         self.set_status(t("status_saved", path=path))
 
     def choose_rarity(self, opt: dict):
@@ -831,9 +939,14 @@ class MainWindow(QMainWindow):
         self.refresh_collection()
 
     def open_settings(self):
+        matcher = self.worker.matcher if self.worker is not None else None
+        self.settings["_learned_count"] = matcher.learned_count if matcher else 0
         dlg = SettingsDialog(self, self.settings)
+        self.settings.pop("_learned_count", None)
         if dlg.exec() != QDialog.Accepted:
             return
+        if dlg.forget_requested and matcher:
+            matcher.forget_all()
         new = dlg.values()
         camera_changed = new["camera"] != self.settings.get("camera")
         self.settings.update(new)
@@ -992,17 +1105,31 @@ class MainWindow(QMainWindow):
             b.style().unpolish(b)
             b.style().polish(b)
 
+    def _grouped_scans(self) -> list[tuple[Candidate, int]]:
+        """Gleiche Karte + gleiche Seltenheit zusammenfassen: [(Beispiel, Anzahl)], zuletzt gescannte unten."""
+        groups: dict[tuple, list] = {}
+        for c in self.scan_list:
+            key = (c.card["id"], c.rarity)
+            if key in groups:
+                groups[key][1] += 1
+                groups[key][0] = c
+                groups[key] = groups.pop(key)    # ans Ende verschieben
+            else:
+                groups[key] = [c, 1]
+        return [(c, n) for c, n in groups.values()]
+
     def update_scan_table(self):
         tbl = self.scan_table
-        tbl.setRowCount(len(self.scan_list))
+        self._scan_rows = self._grouped_scans()
+        tbl.setRowCount(len(self._scan_rows))
         total_cm = total_tcg = 0.0
-        for r, c in enumerate(self.scan_list):
+        for r, (c, n) in enumerate(self._scan_rows):
             cm = price(c.card, "cardmarket_price")
             tcg = c.rarity_price or price(c.card, "tcgplayer_price")
-            total_cm += cm
-            total_tcg += tcg
-            self._set_row(tbl, r, [c.name, c.rarity or "–", eur(cm), usd(tcg), f"{c.confidence:.0%}"],
-                          link_cols=(2, 3), gold=self.alarm_check.isChecked() and cm >= self.alarm_value.value())
+            total_cm += cm * n
+            total_tcg += tcg * n
+            self._set_row(tbl, r, [c.name, c.rarity or "–", f"{n}×", eur(cm), usd(tcg)],
+                          link_cols=(3, 4), gold=self.alarm_check.isChecked() and cm >= self.alarm_value.value())
         tbl.scrollToBottom()
         self.scan_total.setText(t("scan_total", n=len(self.scan_list), cm=eur(total_cm), tcg=usd(total_tcg)))
 

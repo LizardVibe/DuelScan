@@ -221,15 +221,15 @@ STRINGS: dict[str, dict[str, str]] = {
                    "fr": "{n} cartes ({k} différentes)  ·  valeur env. {value} (Cardmarket)",
                    "it": "{n} carte ({k} diverse)  ·  valore circa {value} (Cardmarket)"},
     "hint_keys": {
-        "de": "1/2/3 wählen · Leer übernehmen · S Sammlung · R neu · L Live-Preise · Strg+Z rückgängig · "
+        "de": "1/2/3 wählen · Leer übernehmen · S Sammlung · F suchen · R neu · L Live-Preise · Strg+Z rückgängig · "
               "Entf entfernt aus Sammlung · Preise anklicken öffnet die Seite",
-        "en": "1/2/3 choose · Space accept · S collection · R rescan · L live prices · Ctrl+Z undo · "
+        "en": "1/2/3 choose · Space accept · S collection · F search · R rescan · L live prices · Ctrl+Z undo · "
               "Del removes from collection · click prices to open the page",
-        "es": "1/2/3 elegir · Espacio aceptar · S colección · R reescanear · L precios en vivo · Ctrl+Z deshacer · "
+        "es": "1/2/3 elegir · Espacio aceptar · S colección · F buscar · R reescanear · L precios en vivo · Ctrl+Z deshacer · "
               "Supr quita de la colección · clic en precios abre la página",
-        "fr": "1/2/3 choisir · Espace valider · S collection · R rescanner · L prix en direct · Ctrl+Z annuler · "
+        "fr": "1/2/3 choisir · Espace valider · S collection · F chercher · R rescanner · L prix en direct · Ctrl+Z annuler · "
               "Suppr retire de la collection · cliquer un prix ouvre la page",
-        "it": "1/2/3 scegli · Spazio conferma · S collezione · R riscansiona · L prezzi live · Ctrl+Z annulla · "
+        "it": "1/2/3 scegli · Spazio conferma · S collezione · F cerca · R riscansiona · L prezzi live · Ctrl+Z annulla · "
               "Canc rimuove dalla collezione · clic sui prezzi apre la pagina",
     },
     # ------------------------------------------------------------------ Statusmeldungen
@@ -316,11 +316,51 @@ STRINGS: dict[str, dict[str, str]] = {
     "err_http": {"de": "Fehler der Preis-API", "en": "price API error", "es": "error de la API de precios",
                  "fr": "erreur de l'API de prix", "it": "errore dell'API prezzi"},
     # ------------------------------------------------------------------ CSV
-    "csv_header": {"de": "Name;Typ;Seltenheit;Cardmarket (EUR, ab);TCGplayer (USD);Sicherheit",
-                   "en": "Name;Type;Rarity;Cardmarket (EUR, from);TCGplayer (USD);Confidence",
-                   "es": "Nombre;Tipo;Rareza;Cardmarket (EUR, desde);TCGplayer (USD);Confianza",
-                   "fr": "Nom;Type;Rareté;Cardmarket (EUR, dès);TCGplayer (USD);Confiance",
-                   "it": "Nome;Tipo;Rarità;Cardmarket (EUR, da);TCGplayer (USD);Affidabilità"},
+    "csv_header": {"de": "Anzahl;Name;Typ;Seltenheit;Cardmarket (EUR, ab);TCGplayer (USD)",
+                   "en": "Qty;Name;Type;Rarity;Cardmarket (EUR, from);TCGplayer (USD)",
+                   "es": "Cant.;Nombre;Tipo;Rareza;Cardmarket (EUR, desde);TCGplayer (USD)",
+                   "fr": "Qté;Nom;Type;Rareté;Cardmarket (EUR, dès);TCGplayer (USD)",
+                   "it": "Qtà;Nome;Tipo;Rarità;Cardmarket (EUR, da);TCGplayer (USD)"},
+    # ------------------------------------------------------------------ Suche & Lernen (0.2.0)
+    "search_btn": {"de": "  🔍   Nicht dabei? Karte suchen  [F]", "en": "  🔍   Not listed? Search card  [F]",
+                   "es": "  🔍   ¿No aparece? Buscar carta  [F]", "fr": "  🔍   Pas dans la liste ? Chercher  [F]",
+                   "it": "  🔍   Non c'è? Cerca carta  [F]"},
+    "search_title": {"de": "Karte suchen", "en": "Search card", "es": "Buscar carta", "fr": "Chercher une carte",
+                     "it": "Cerca carta"},
+    "search_placeholder": {"de": "Kartenname (englisch), z.B. ash blossom", "en": "Card name, e.g. ash blossom",
+                           "es": "Nombre de la carta (en inglés), p. ej. ash blossom",
+                           "fr": "Nom de la carte (en anglais), ex. ash blossom",
+                           "it": "Nome della carta (in inglese), es. ash blossom"},
+    "search_hint": {"de": "Enter oder Doppelklick übernimmt die Karte. Liegt sie gerade unter der Kamera, merkt sich "
+                          "das Programm ihr Bild und erkennt sie beim nächsten Mal selbst.",
+                    "en": "Enter or double-click picks the card. If it's under the camera right now, the app remembers "
+                          "its image and recognizes it by itself next time.",
+                    "es": "Enter o doble clic elige la carta. Si está bajo la cámara, la aplicación recuerda su imagen "
+                          "y la reconocerá sola la próxima vez.",
+                    "fr": "Entrée ou double-clic choisit la carte. Si elle est sous la caméra, l'application retient "
+                          "son image et la reconnaîtra seule la prochaine fois.",
+                    "it": "Invio o doppio clic sceglie la carta. Se è sotto la fotocamera, l'app ne memorizza "
+                          "l'immagine e la riconoscerà da sola la prossima volta."},
+    "status_learned": {"de": "  ·  gemerkt – wird beim nächsten Mal sicherer erkannt",
+                       "en": "  ·  remembered – will be recognized more reliably next time",
+                       "es": "  ·  memorizada: la próxima vez se reconocerá mejor",
+                       "fr": "  ·  mémorisée – sera mieux reconnue la prochaine fois",
+                       "it": "  ·  memorizzata – la prossima volta sarà riconosciuta meglio"},
+    "learned_label": {"de": "Gelernte Bilder", "en": "Learned images", "es": "Imágenes aprendidas",
+                      "fr": "Images apprises", "it": "Immagini apprese"},
+    "forget_btn": {"de": "Alle {n} gelernten Bilder löschen", "en": "Delete all {n} learned images",
+                   "es": "Borrar las {n} imágenes aprendidas", "fr": "Supprimer les {n} images apprises",
+                   "it": "Elimina tutte le {n} immagini apprese"},
+    "learned_hint": {"de": "Wenn du eine unsichere Karte bestätigst oder korrigierst, merkt sich das Programm das "
+                           "Kamerabild. Löschen ist nur nötig, wenn du Kamera oder Licht stark veränderst.",
+                     "en": "When you confirm or correct an uncertain card, the app remembers the camera image. "
+                           "Only delete them if you change your camera or lighting a lot.",
+                     "es": "Al confirmar o corregir una carta dudosa, la aplicación recuerda la imagen de la cámara. "
+                           "Bórralas solo si cambias mucho la cámara o la luz.",
+                     "fr": "Quand vous confirmez ou corrigez une carte incertaine, l'application retient l'image de "
+                           "la caméra. Ne les supprimez que si vous changez beaucoup de caméra ou d'éclairage.",
+                     "it": "Quando confermi o correggi una carta incerta, l'app memorizza l'immagine della fotocamera. "
+                           "Eliminale solo se cambi molto fotocamera o luce."},
     # ------------------------------------------------------------------ Einstellungen
     "settings_title": {"de": "Einstellungen", "en": "Settings", "es": "Ajustes", "fr": "Paramètres",
                        "it": "Impostazioni"},

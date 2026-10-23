@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "DuelScan"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0-dev"
 
 FROZEN = getattr(sys, "frozen", False)          # True in der installierten .exe-Version
 ROOT = Path(__file__).resolve().parent.parent
