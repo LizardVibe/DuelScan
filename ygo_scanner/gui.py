@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTableWidget,
                                QTableWidgetItem, QTabWidget, QToolBar, QVBoxLayout, QWidget)
 
-from . import database, offline_prices
+from . import database, offline_prices, rarity as rarity_guess
 from .collection import (Collection, cardmarket_url, load_settings, price, rarities, save_settings,
                          tcgplayer_url)
 from .config import (APP_NAME, APP_VERSION, ART_DIR, ASSETS_DIR, AUTO_ACCEPT_CONFIDENCE, DATA_DIR, DEBUG_DIR, SCANS_DIR,
@@ -33,6 +33,7 @@ from .setup_dialog import SetupDialog
 from .vision import find_card, warp_card
 
 FULL_DIR = DATA_DIR / "full"
+RARITY_AUTO_SELECT = 0.60   # ab dieser Wahrscheinlichkeit wird der Seltenheits-Vorschlag vorausgewählt
 GOLD = "#f5c542"
 
 STYLE = """
@@ -64,6 +65,7 @@ QPushButton#cand { text-align: left; padding: 6px 10px; }
 QPushButton#cand[chosen="true"] { border: 2px solid #4c6ef5; background: #263056; }
 QPushButton#rarity { padding: 4px 6px; font-size: 12px; border-radius: 6px; }
 QPushButton#rarity:checked { border: 2px solid #f5c542; background: #3a3320; }
+QPushButton#rarity[auto="true"]:checked { border: 2px dashed #f5c542; }
 QLabel#raritytitle { color: #9a9cab; font-size: 12px; }
 QPushButton#cond { padding: 3px 8px; font-size: 12px; border-radius: 6px; }
 QPushButton#cond:checked { border: 2px solid #4c6ef5; background: #263056; }
@@ -758,8 +760,8 @@ class MainWindow(QMainWindow):
             self.scan_list.append(c)
             self.in_list = True
         self.chosen = i
-        self.update_scan_table()
         alarm = self.show_card(c)
+        self.update_scan_table()
         self._mark_chosen()
         self.set_status(t("status_recognized" if auto else "status_accepted", name=c.name))
         if not auto:
@@ -857,12 +859,18 @@ class MainWindow(QMainWindow):
         if self.chosen is None:
             return
         c = self.candidates[self.chosen]
-        same = c.rarity == opt["rarity"]
-        # nochmal klicken = abwählen
+        # Klick auf den (gestrichelten) Vorschlag = bestätigen; sonst nochmal klicken = abwählen
+        same = c.rarity == opt["rarity"] and not c.rarity_auto
         c.rarity, c.rarity_price, c.rarity_url = ((None, 0.0, None) if same
                                                   else (opt["rarity"], opt["price"], opt.get("url")))
+        c.rarity_auto, c.rarity_user = False, True
+        if c.rarity and self.scan_img is not None:
+            rarity_guess.save_sample(self.scan_img, c.rarity, c.card.get("frameType", ""))
         for b in self.rarity_buttons:
             b.setChecked(not same and b.property("rarity") == opt["rarity"])
+            b.setProperty("auto", False)
+            b.style().unpolish(b)
+            b.style().polish(b)
         self._set_tcg_label(c)
         self.update_scan_table()
         self.set_status(t("status_rarity", r=c.rarity) if c.rarity else t("status_rarity_cleared"))
@@ -985,8 +993,8 @@ class MainWindow(QMainWindow):
                 c.name in self.live_data or self.live.cached(c.name) is not None
                 or cm >= float(self.settings.get("live_price_min_eur", 0.85))):
             self.live_loader.request(c.name)
-        self._set_tcg_label(c)
-        self._build_rarity_buttons(c, enabled=not tentative)
+        self._build_rarity_buttons(c, enabled=not tentative)   # kann eine Seltenheit vorschlagen ...
+        self._set_tcg_label(c)                                 # ... deshalb erst danach den Preis anzeigen
         n = self.collection.count(c.card["id"])
         self.coll_label.setText(t("in_collection_n", n=n) if n else t("not_in_collection"))
 
@@ -1013,13 +1021,26 @@ class MainWindow(QMainWindow):
 
     def _rarity_options(self, c: Candidate) -> tuple[str, list[dict]]:
         """Preisquelle wählen: Live (mit Zustand) > TCGplayer-Tagespreise > YGOPRODeck."""
+        return self._rarity_source(c)[:2]
+
+    def _rarity_source(self, c: Candidate) -> tuple[str, list[dict], list[dict]]:
+        """(Quelle, Seltenheiten mit Preis, alle Drucke)."""
         live = self.live_data.get(c.name)
         if live:
-            return "live", rarities_live(live, c.condition)
+            return "live", rarities_live(live, c.condition), live
         daily = self.offline.printings(c.name)
         if daily:
-            return "daily", rarities_live(daily, "market")
-        return "ygo", rarities(c.card)
+            return "daily", rarities_live(daily, "market"), daily
+        sets = [{"rarity": x.get("set_rarity")} for x in c.card.get("card_sets") or []]
+        return "ygo", rarities(c.card), sets
+
+    def _guess_rarity(self, c: Candidate, options: list[dict], printings: list[dict]) -> dict[str, float]:
+        """Vorschlag aus Namensfarbe (Kamerabild) und Häufigkeit der Drucke; einmal pro Karte berechnet."""
+        if c.rarity_class_probs is None:
+            img = self.scan_img if c in self.candidates else None
+            feat = rarity_guess.name_features(img) if img is not None else None
+            c.rarity_class_probs = rarity_guess.class_probs(feat, c.card.get("frameType", ""))
+        return rarity_guess.suggest(options, printings, c.rarity_class_probs)
 
     def _build_rarity_buttons(self, c: Candidate, enabled: bool):
         for b in self.rarity_buttons:
@@ -1027,8 +1048,10 @@ class MainWindow(QMainWindow):
             b.hide()   # sonst flackert der alte Button kurz an falscher Stelle
             b.deleteLater()
         self.rarity_buttons = []
-        source, options = self._rarity_options(c)
+        source, options, printings = self._rarity_source(c)
         live = source == "live"
+        c.rarity_guess = self._guess_rarity(c, options, printings) if enabled else {}
+        top = max(c.rarity_guess.items(), key=lambda kv: kv[1]) if c.rarity_guess else None
         if source == "live":
             self.rarity_title.setText(t("rarity_title_live", cond=CONDITION_SHORT[c.condition]))
         elif source == "daily":
@@ -1039,8 +1062,13 @@ class MainWindow(QMainWindow):
             self.rarity_title.setText(t("no_rarities"))
         if c.rarity and c.rarity not in {o["rarity"] for o in options}:
             c.rarity, c.rarity_price, c.rarity_url = None, 0.0, None   # Seltenheit gibt es in dieser Quelle nicht
+            c.rarity_auto = False
         if len(options) == 1 and not c.rarity:
             c.rarity = options[0]["rarity"]
+        elif top and not c.rarity and not c.rarity_user and top[1] >= RARITY_AUTO_SELECT:
+            c.rarity, c.rarity_auto = top[0], True      # Vorschlag vorauswählen (gestrichelter Rahmen)
+        if top and len(options) > 1:
+            self.rarity_title.setText(self.rarity_title.text() + t("rarity_suggest", r=top[0], p=f"{top[1]:.0%}"))
         for o in options:
             if o["rarity"] == c.rarity:
                 c.rarity_price, c.rarity_url = o["price"], o.get("url")
@@ -1058,8 +1086,11 @@ class MainWindow(QMainWindow):
             self._set_badge(source)
         for k, opt in enumerate(options):
             p = usd(opt["price"]) if opt["price"] else t("no_price")
-            b = QPushButton(f"{amp(opt['rarity'])}\n{p}", objectName="rarity")
+            guess = c.rarity_guess.get(opt["rarity"], 0.0) if len(options) > 1 else 0.0
+            tag = f"  ·  {guess:.0%}" if guess >= 0.15 else ""
+            b = QPushButton(f"{amp(opt['rarity'])}\n{p}{tag}", objectName="rarity")
             b.setProperty("rarity", opt["rarity"])
+            b.setProperty("auto", bool(c.rarity_auto and opt["rarity"] == c.rarity))
             b.setCheckable(True)
             b.setChecked(opt["rarity"] == c.rarity)
             b.setEnabled(enabled)

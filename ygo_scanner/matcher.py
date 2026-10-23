@@ -42,6 +42,9 @@ class Candidate:
     rarity_url: str | None = None # TCGplayer-Seite des günstigsten Drucks dieser Seltenheit
     condition: str = "near_mint"  # Zustand für Live-Preise
     rarity_guess: dict | None = None  # automatischer Seltenheits-Vorschlag {Seltenheit: Wahrscheinlichkeit}
+    rarity_class_probs: dict | None = None  # Namensfarbe aus dem Kamerabild (plain/silver/gold/rainbow)
+    rarity_auto: bool = False     # Seltenheit stammt aus dem Vorschlag (noch nicht bestätigt)
+    rarity_user: bool = False     # Nutzer hat die Seltenheit selbst gewählt
 
     @property
     def name(self) -> str:

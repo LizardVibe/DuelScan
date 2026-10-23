@@ -321,6 +321,11 @@ STRINGS: dict[str, dict[str, str]] = {
                    "es": "Cant.;Nombre;Tipo;Rareza;Cardmarket (EUR, desde);TCGplayer (USD)",
                    "fr": "Qté;Nom;Type;Rareté;Cardmarket (EUR, dès);TCGplayer (USD)",
                    "it": "Qtà;Nome;Tipo;Rarità;Cardmarket (EUR, da);TCGplayer (USD)"},
+    "rarity_suggest": {"de": "  ·  <b>Vorschlag: {r} ({p})</b> – anklicken zum Bestätigen",
+                       "en": "  ·  <b>Suggestion: {r} ({p})</b> – click to confirm",
+                       "es": "  ·  <b>Sugerencia: {r} ({p})</b> – pulsa para confirmar",
+                       "fr": "  ·  <b>Suggestion : {r} ({p})</b> – cliquer pour confirmer",
+                       "it": "  ·  <b>Suggerimento: {r} ({p})</b> – clicca per confermare"},
     # ------------------------------------------------------------------ Suche & Lernen (0.2.0)
     "search_btn": {"de": "  🔍   Nicht dabei? Karte suchen  [F]", "en": "  🔍   Not listed? Search card  [F]",
                    "es": "  🔍   ¿No aparece? Buscar carta  [F]", "fr": "  🔍   Pas dans la liste ? Chercher  [F]",
