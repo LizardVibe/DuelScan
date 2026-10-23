@@ -57,6 +57,14 @@ Der Einrichtungs-Assistent lädt ca. 15.000 Kartenbilder, bereitet die Erkennung
 - Licht **von der Seite** (Schreibtischlampe), nicht direkt von oben, sonst spiegeln Foil-Karten.
 - Die **Schärfe-Anzeige** oben in der Leiste hilft, die beste Position zu finden.
 
+## Bekannte Einschränkungen
+
+- **Sehr dunkle oder sehr helle Artworks** (z.B. *Der Anfang vom Ende*, das fast komplett schwarz ist) lassen sich über das Bild schwer unterscheiden. Bei solchen Karten ist die Sicherheit niedriger, und du wählst die richtige Karte aus den Vorschlägen. Eine Erkennung des Kartennamens (OCR) ist geplant.
+- **Starke Spiegelungen bei Foil-Karten** und **glänzende Hüllen** können die Erkennung verschlechtern. Licht von der Seite und matte Hüllen (oder keine Hülle) helfen.
+- **Druck (Set-Code) und Seltenheit werden noch nicht automatisch erkannt**: Die Seltenheit wählst du mit einem Klick.
+- **TCGplayer-Preise sind US-Marktpreise in Dollar**. Von Cardmarket gibt es nur den „ab“-Preis über alle Versionen.
+- **OCG-Karten (asiatische Drucke)** werden erkannt, ihre Preise sind aber die der TCG-Version und können stark abweichen.
+
 ## Tastenkürzel
 
 | Taste | Funktion |

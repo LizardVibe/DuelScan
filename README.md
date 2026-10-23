@@ -64,6 +64,14 @@ The setup assistant downloads about 15,000 card images, prepares the recognition
 - Light from the **side** (desk lamp), not straight from above, which causes glare on foils.
 - The **sharpness meter** in the toolbar helps you find the best position.
 
+## Known limitations
+
+- **Very dark or very bright artworks** (e.g. *The Beginning of the End*, which is almost completely black) are hard to tell apart by image. Expect lower confidence for these and pick the right card from the candidates. Recognizing the card name (OCR) is planned.
+- **Strong glare on foils** and **glossy sleeves** can reduce accuracy. Light from the side and matte sleeves (or no sleeves) help.
+- **The printing (set code) and rarity are not detected automatically yet**: you pick the rarity with one click.
+- **TCGplayer prices are US market prices in USD**. Cardmarket only provides a "from" price across all versions.
+- **OCG (Asian) cards** are recognized, but their prices are the TCG prices and may differ a lot.
+
 ## Keyboard shortcuts
 
 | Key | Action |
