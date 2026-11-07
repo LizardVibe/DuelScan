@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTableWidget,
                                QTableWidgetItem, QTabWidget, QToolBar, QVBoxLayout, QWidget)
 
-from . import database, offline_prices, rarity as rarity_guess
+from . import database, fx, offline_prices, rarity as rarity_guess
 from .collection import (Collection, cardmarket_url, load_settings, price, rarities, save_settings,
                          tcgplayer_url)
 from .config import (APP_NAME, APP_VERSION, ART_DIR, ASSETS_DIR, AUTO_ACCEPT_CONFIDENCE, DATA_DIR, DEBUG_DIR, SCANS_DIR,
@@ -279,6 +279,7 @@ class PriceUpdater(QObject):
             if with_cards:
                 fresh = {c["id"]: c for c in database.download_cards(progress=lambda *a: None)}
             offline_prices.update(log=lambda *a: None, progress=self.progress.emit)
+            fx.update()
             self.finished.emit(True, "", fresh)
         except Exception as e:  # noqa: BLE001
             self.finished.emit(False, str(e), fresh)
@@ -760,8 +761,11 @@ class MainWindow(QMainWindow):
             self.scan_list.append(c)
             self.in_list = True
         self.chosen = i
+        played = getattr(c, "alarm_played", False)
         alarm = self.show_card(c)
         self.update_scan_table()
+        if played:
+            alarm = False      # Melodie für diese Karte schon gespielt
         self._mark_chosen()
         self.set_status(t("status_recognized" if auto else "status_accepted", name=c.name))
         if not auto:
@@ -874,6 +878,7 @@ class MainWindow(QMainWindow):
         self._set_tcg_label(c)
         self.update_scan_table()
         self.set_status(t("status_rarity", r=c.rarity) if c.rarity else t("status_rarity_cleared"))
+        self._update_alarm(c, sound=True)
 
     def choose_condition(self, cond: str):
         c = self._current()
@@ -886,6 +891,7 @@ class MainWindow(QMainWindow):
         self._build_rarity_buttons(c, enabled=True)
         self._set_tcg_label(c)
         self.update_scan_table()
+        self._update_alarm(c, sound=True)
 
     def load_live(self):
         c = self._current()
@@ -907,6 +913,7 @@ class MainWindow(QMainWindow):
             self._build_rarity_buttons(c, enabled=True)
             self._set_tcg_label(c)
             self.update_scan_table()
+            self._update_alarm(c, sound=True)
             rem = self.live.quota()[0]
             left = t("status_requests_left", n=rem) if rem is not None else ""
             self.set_status(t("status_live_loaded", n=len(printings)) + left)
@@ -998,21 +1005,47 @@ class MainWindow(QMainWindow):
         n = self.collection.count(c.card["id"])
         self.coll_label.setText(t("in_collection_n", n=n) if n else t("not_in_collection"))
 
-        alarm = not tentative and self.alarm_check.isChecked() and cm >= self.alarm_value.value()
-        self.alarm_label.setText(t("alarm_text", value=eur(self.alarm_value.value())) if alarm else "")
-        self.result.setProperty("alarm", alarm)
-        self.result.style().unpolish(self.result)
-        self.result.style().polish(self.result)
+        alarm = self._update_alarm(c, tentative)
 
         self.card_img.setPixmap(QPixmap(str(ART_DIR / f"{c.image_id}.jpg")).scaled(
             self.card_img.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
         self.images.request(c.card, c.image_id)
         return alarm
 
+    def _value_eur(self, c: Candidate) -> float:
+        """Wert für den Alarm: Cardmarket-"ab"-Preis oder - falls höher - der Preis der gewählten
+        Seltenheit/des Zustands (TCGplayer, in Euro umgerechnet)."""
+        cm = price(c.card, "cardmarket_price")
+        rar = fx.usd_to_eur(c.rarity_price) if c.rarity and c.rarity_price else 0.0
+        return max(cm, rar)
+
+    def _update_alarm(self, c: Candidate, tentative: bool = False, sound: bool = False) -> bool:
+        """Goldenen Rahmen/Text setzen. sound=True spielt die Melodie, wenn die Karte gerade erst zum
+        Hit geworden ist (z.B. weil eine teure Seltenheit gewählt wurde)."""
+        thr = self.alarm_value.value()
+        value = self._value_eur(c)
+        alarm = not tentative and self.alarm_check.isChecked() and value >= thr
+        if not alarm:
+            text = ""
+        elif c.rarity and c.rarity_price and value > price(c.card, "cardmarket_price"):
+            text = t("alarm_hit", r=c.rarity, value=eur(value)) + (t("alarm_hit_guess") if c.rarity_auto else "")
+        else:
+            text = t("alarm_text", value=eur(thr))
+        self.alarm_label.setText(text)
+        self.result.setProperty("alarm", alarm)
+        self.result.style().unpolish(self.result)
+        self.result.style().polish(self.result)
+        if sound and alarm and not getattr(c, "alarm_played", False):
+            play_sound(True)
+        if alarm:
+            c.alarm_played = True
+        return alarm
+
     def _set_tcg_label(self, c: Candidate):
         link = c.rarity_url or tcgplayer_url(c.card)   # mit Seltenheit: direkt zum günstigsten Druck
         if c.rarity:
-            val = usd(c.rarity_price) if c.rarity_price else t("no_price_known")
+            val = (f"{usd(c.rarity_price)}  (≈ {eur(fx.usd_to_eur(c.rarity_price))})" if c.rarity_price
+                   else t("no_price_known"))
             cond = f" {CONDITION_SHORT[c.condition]}" if c.name in self.live_data else ""
             self.tcg_label.setText(f'TCGplayer · {c.rarity}{cond}: <a style="color:#74c0fc" href="{link}">{val}</a>')
         else:
@@ -1039,7 +1072,10 @@ class MainWindow(QMainWindow):
         if c.rarity_class_probs is None:
             img = self.scan_img if c in self.candidates else None
             feat = rarity_guess.name_features(img) if img is not None else None
-            c.rarity_class_probs = rarity_guess.class_probs(feat, c.card.get("frameType", ""))
+            # Ohne lesbares Namensfeld kein Vorschlag - sonst wäre es nur geraten
+            c.rarity_class_probs = rarity_guess.class_probs(feat, c.card.get("frameType", "")) if feat else {}
+        if not c.rarity_class_probs:
+            return {}
         return rarity_guess.suggest(options, printings, c.rarity_class_probs)
 
     def _build_rarity_buttons(self, c: Candidate, enabled: bool):
@@ -1160,7 +1196,8 @@ class MainWindow(QMainWindow):
             total_cm += cm * n
             total_tcg += tcg * n
             self._set_row(tbl, r, [c.name, c.rarity or "–", f"{n}×", eur(cm), usd(tcg)],
-                          link_cols=(3, 4), gold=self.alarm_check.isChecked() and cm >= self.alarm_value.value())
+                          link_cols=(3, 4),
+                          gold=self.alarm_check.isChecked() and self._value_eur(c) >= self.alarm_value.value())
         tbl.scrollToBottom()
         self.scan_total.setText(t("scan_total", n=len(self.scan_list), cm=eur(total_cm), tcg=usd(total_tcg)))
 
@@ -1181,7 +1218,8 @@ class MainWindow(QMainWindow):
             count += n
             self._coll_cards.append((card, opt.get("url") if opt else None))
             self._set_row(tbl, r, [name, rarity or "–", str(n), eur(cm), usd(tcg), eur(cm * n)], link_cols=(3, 4),
-                          gold=self.alarm_check.isChecked() and cm >= self.alarm_value.value())
+                          gold=self.alarm_check.isChecked()
+                          and max(cm, fx.usd_to_eur(opt["price"]) if opt else 0.0) >= self.alarm_value.value())
             tbl.item(r, 0).setData(Qt.UserRole, (card_id, rarity))
         self.coll_total.setText(t("coll_total", n=count, k=len(rows), value=eur(total)))
 

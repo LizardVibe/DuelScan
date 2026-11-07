@@ -157,6 +157,11 @@ STRINGS: dict[str, dict[str, str]] = {
     "alarm_text": {"de": "★ WERTVOLL – über {value}!", "en": "★ VALUABLE – over {value}!",
                    "es": "★ VALIOSA – más de {value}!", "fr": "★ PRÉCIEUSE – plus de {value} !",
                    "it": "★ PREZIOSA – oltre {value}!"},
+    "alarm_hit": {"de": "★ HIT! {r} ≈ {value}", "en": "★ HIT! {r} ≈ {value}", "es": "★ ¡PREMIO! {r} ≈ {value}",
+                  "fr": "★ JACKPOT ! {r} ≈ {value}", "it": "★ COLPO! {r} ≈ {value}"},
+    "alarm_hit_guess": {"de": "  (Vorschlag – bitte prüfen)", "en": "  (suggestion – please check)",
+                        "es": "  (sugerencia: compruébalo)", "fr": "  (suggestion – à vérifier)",
+                        "it": "  (suggerimento – da verificare)"},
     "rarity_title_live": {
         "de": "Seltenheit wählen – <b>Live-Preise</b> TCGplayer, Zustand {cond} (günstigster Druck):",
         "en": "Choose rarity – <b>live prices</b> TCGplayer, condition {cond} (cheapest printing):",

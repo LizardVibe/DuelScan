@@ -196,3 +196,5 @@ def setup(progress: Progress = _print_progress, cancel: threading.Event | None =
     if cancel is not None and cancel.is_set():
         raise Cancelled
     offline_prices.update(progress=progress)
+    from . import fx
+    fx.update()
