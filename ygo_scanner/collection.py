@@ -95,12 +95,13 @@ class Collection:
         self.db.commit()
 
     def add(self, card: dict, image_id: int, rarity: str | None = None, rarity_price: float = 0.0,
-            condition: str | None = None) -> int:
+            condition: str | None = None, set_code: str | None = None) -> int:
         self.db.execute(
             "INSERT INTO cards (card_id, name, image_id, added_at, price_cm_at_add, price_tcg_at_add, rarity, "
-            "condition) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "condition, set_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (card["id"], card["name"], image_id, dt.datetime.now().isoformat(timespec="seconds"),
-             price(card, "cardmarket_price"), rarity_price or price(card, "tcgplayer_price"), rarity, condition))
+             price(card, "cardmarket_price"), rarity_price or price(card, "tcgplayer_price"), rarity, condition,
+             set_code))
         self.db.commit()
         return self.count(card["id"])
 

@@ -612,6 +612,17 @@ class MainWindow(QMainWindow):
         self.rarity_grid.setSpacing(6)
         outer.addLayout(self.rarity_grid)
         self.rarity_buttons: list[QPushButton] = []
+        print_row = QHBoxLayout()
+        self.print_label = QLabel(t("printing"), objectName="raritytitle")
+        self.print_combo = QComboBox()
+        self.print_combo.setFocusPolicy(Qt.NoFocus)
+        self.print_combo.setToolTip(t("printing_tooltip"))
+        self.print_combo.activated.connect(self._printing_chosen)
+        print_row.addWidget(self.print_label)
+        print_row.addWidget(self.print_combo, 1)
+        outer.addLayout(print_row)
+        self.print_label.hide()
+        self.print_combo.hide()
         right.addWidget(self.result)
 
         self.cand_buttons = []
@@ -815,7 +826,8 @@ class MainWindow(QMainWindow):
             self.choose(0)
         c = self.candidates[self.chosen]
         n = self.collection.add(c.card, c.image_id, c.rarity, c.rarity_price,
-                                CONDITION_SHORT[c.condition] if c.name in self.live_data else None)
+                                CONDITION_SHORT[c.condition] if c.name in self.live_data else None,
+                                set_code=c.printing)
         self.coll_label.setText(t("in_collection_n", n=n))
         self.set_status(t("status_added", name=c.name, n=n))
         self.refresh_collection()
@@ -869,6 +881,9 @@ class MainWindow(QMainWindow):
         c.rarity, c.rarity_price, c.rarity_url = ((None, 0.0, None) if same
                                                   else (opt["rarity"], opt["price"], opt.get("url")))
         c.rarity_auto, c.rarity_user = False, True
+        c.printing = None
+        source, _opts, printings = self._rarity_source(c)
+        self._fill_printings(c, source, printings, True)
         if c.rarity and self.scan_img is not None:
             rarity_guess.save_sample(self.scan_img, c.rarity, c.card.get("frameType", ""))
         for b in self.rarity_buttons:
@@ -1048,7 +1063,9 @@ class MainWindow(QMainWindow):
             val = (f"{usd(c.rarity_price)}  (≈ {eur(fx.usd_to_eur(c.rarity_price))})" if c.rarity_price
                    else t("no_price_known"))
             cond = f" {CONDITION_SHORT[c.condition]}" if c.name in self.live_data else ""
-            self.tcg_label.setText(f'TCGplayer · {c.rarity}{cond}: <a style="color:#74c0fc" href="{link}">{val}</a>')
+            which = f" · {c.printing}" if c.printing else ""
+            self.tcg_label.setText(f'TCGplayer · {c.rarity}{which}{cond}: '
+                                   f'<a style="color:#74c0fc" href="{link}">{val}</a>')
         else:
             self.tcg_label.setText(f'{t("tcg_from")} <a style="color:#74c0fc" href="{link}">'
                                    f'{usd(price(c.card, "tcgplayer_price"))}</a>')
@@ -1136,6 +1153,50 @@ class MainWindow(QMainWindow):
             b.clicked.connect(lambda _=False, o=opt: self.choose_rarity(o))
             self.rarity_grid.addWidget(b, k // 3, k % 3)
             self.rarity_buttons.append(b)
+        self._fill_printings(c, source, printings, enabled)
+
+    def _printings_of(self, c: Candidate, source: str, printings: list[dict]) -> list[dict]:
+        """Alle Drucke der gewählten Seltenheit, günstigster zuerst (ohne Preis ans Ende)."""
+        if not c.rarity or source == "ygo":
+            return []
+        key = c.condition if source == "live" else "market"
+        out = [{"label": f"{p['code']} {p.get('edition') or ''}".strip(), "price": p["prices"].get(key) or 0.0,
+                "url": p.get("url")} for p in printings if p.get("rarity") == c.rarity]
+        return sorted(out, key=lambda d: (d["price"] <= 0, d["price"], d["label"]))
+
+    def _fill_printings(self, c: Candidate, source: str, printings: list[dict], enabled: bool):
+        items = self._printings_of(c, source, printings)
+        self.print_combo.clear()
+        visible = len(items) > 1
+        self.print_label.setVisible(visible)
+        self.print_combo.setVisible(visible)
+        if not items:
+            c.printing = None
+            return
+        if c.printing not in {d["label"] for d in items}:
+            c.printing = None             # neue Seltenheit -> wieder "günstigster Druck"
+        for d in items:
+            price_txt = f"{usd(d['price'])}  (≈ {eur(fx.usd_to_eur(d['price']))})" if d["price"] else t("no_price")
+            self.print_combo.addItem(f"{d['label']}   ·   {price_txt}", d)
+        idx = next((i for i, d in enumerate(items) if d["label"] == c.printing), 0)
+        self.print_combo.setCurrentIndex(idx)
+        self.print_combo.setEnabled(enabled)
+        if c.printing:                     # gewählter Druck bestimmt Preis und Link
+            d = items[idx]
+            c.rarity_price, c.rarity_url = d["price"], d["url"] or c.rarity_url
+
+    def _printing_chosen(self, idx: int):
+        c = self._current()
+        d = self.print_combo.itemData(idx)
+        if c is None or self.chosen is None or not d:
+            return
+        c.printing = d["label"]
+        c.rarity_price, c.rarity_url = d["price"], d["url"] or c.rarity_url
+        c.rarity_auto, c.rarity_user = False, True
+        self._set_tcg_label(c)
+        self.update_scan_table()
+        self.set_status(t("status_printing", p=d["label"]))
+        self._update_alarm(c, sound=True)
 
     def _set_badge(self, state: str):
         if state == "live":

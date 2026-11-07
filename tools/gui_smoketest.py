@@ -101,6 +101,23 @@ def main(photo: str) -> int:
           w.alarm_label.text())
     check("kein Vorschlag ohne Kamerabild", not w._current().rarity_guess)
 
+    print("Druck wählen")
+    vl = cards["Vampire Lord"]
+    sounds.clear()
+    w._on_scanned([Candidate(vl, vl["card_images"][0]["id"], 9.0, 0.97)], None)
+    sec = next(o for o in w._rarity_options(w._current())[1] if o["rarity"] == "Secret Rare")
+    w.choose_rarity(sec)
+    check("Druck-Auswahl sichtbar", w.print_combo.count() > 1, f"{w.print_combo.count()} Drucke")
+    check("günstigster vorausgewählt, kein Alarm", w.alarm_label.text() == "", w.print_combo.currentText())
+    idx = max(range(w.print_combo.count()), key=lambda i: w.print_combo.itemData(i)["price"])
+    w.print_combo.setCurrentIndex(idx)
+    w._printing_chosen(idx)
+    check("teurer Druck -> HIT", "HIT" in w.alarm_label.text() and sounds[-1] is True, w.alarm_label.text())
+    check("Preiszeile nennt Druck", w._current().printing in w.tcg_label.text(), w._current().printing)
+    w.add_to_collection()
+    row = w.collection.db.execute("SELECT rarity, set_code FROM cards ORDER BY id DESC LIMIT 1").fetchone()
+    check("Sammlung speichert Druck", row == ("Secret Rare", w._current().printing), str(row))
+
     print("Ergebnis:", "alles OK" if not failures else f"{len(failures)} Fehler: {failures}")
     w.close()
     return 1 if failures else 0

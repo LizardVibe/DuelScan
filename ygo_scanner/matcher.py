@@ -45,6 +45,7 @@ class Candidate:
     rarity_class_probs: dict | None = None  # Namensfarbe aus dem Kamerabild (plain/silver/gold/rainbow)
     rarity_auto: bool = False     # Seltenheit stammt aus dem Vorschlag (noch nicht bestätigt)
     rarity_user: bool = False     # Nutzer hat die Seltenheit selbst gewählt
+    printing: str | None = None   # gewählter Druck, z.B. "DCR-000 Unlimited" (None = günstigster)
 
     @property
     def name(self) -> str:
