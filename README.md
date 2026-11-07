@@ -13,13 +13,17 @@ Free, open source, runs locally on your PC.
 - **Fast scanning:** put a card under the camera, it is recognized automatically as soon as it lies still. No clicking needed.
 - **Local AI recognition:** a combination of image fingerprints and a small AI model (DINOv2) that runs on your **CPU**. No graphics card or cloud is needed.
 - **Confidence instead of guessing:** confident matches are accepted automatically. Uncertain ones show the top 3 candidates, and you confirm with `1`/`2`/`3`.
+- **Learns from you:** when you confirm or correct an uncertain card, DuelScan remembers the image from *your* camera and recognizes that card more reliably next time.
+- **Search:** if the right card isn't among the suggestions, search it by name (`F`).
+- **Rarity suggestion:** DuelScan looks at the color of the card name (plain, silver, gold, rainbow) and the rarities the card exists in, and preselects the most likely one. One click confirms or changes it.
+- **Exact printing:** pick the set code and edition (e.g. `DCR-000 Unlimited` vs. `BLGG-EN004 1st Edition`); price and link follow your choice.
 - **Prices:**
   - Cardmarket "from" price (EUR)
   - TCGplayer daily prices **per rarity** (USD), free and unlimited
   - optional **live prices per condition** (NM/LP/MP/HP/DMG) with a free [TCG Price Lookup](https://tcgpricelookup.com/tcg-api) key
 - **Clickable prices** open Cardmarket and TCGplayer, going straight to the cheapest printing of the chosen rarity.
-- **Value alert:** cards above your threshold get a gold frame and play a sound, which helps when sorting bulk.
-- **Collection** with quantity, rarity, condition and total value, plus a **CSV export** of your scan list.
+- **Value alert ("hit"):** cards above your threshold get a gold frame and play a sound. This also triggers when you select an expensive rarity or printing (USD prices are converted with the daily ECB exchange rate).
+- **Collection** with quantity, rarity, printing, condition and total value, plus a **CSV export** of your scan list (duplicates are grouped).
 - **5 languages:** English, Deutsch, Español, Français, Italiano.
 
 ## Requirements
@@ -68,7 +72,7 @@ The setup assistant downloads about 15,000 card images, prepares the recognition
 
 - **Very dark or very bright artworks** (e.g. *The Beginning of the End*, which is almost completely black) are hard to tell apart by image. Expect lower confidence for these and pick the right card from the candidates. Recognizing the card name (OCR) is planned.
 - **Strong glare on foils** and **glossy sleeves** can reduce accuracy. Light from the side and matte sleeves (or no sleeves) help.
-- **The printing (set code) and rarity are not detected automatically yet**: you pick the rarity with one click.
+- **The rarity suggestion is a best guess** based on the name color. It works best with good, even lighting; telling white text from silver (Rare) on Spell/Trap/Xyz/Link cards is hard on a webcam. **Set code and 1st Edition are not detected automatically**: you pick them from the "Printing" list.
 - **TCGplayer prices are US market prices in USD**. Cardmarket only provides a "from" price across all versions.
 - **OCG (Asian) cards** are recognized, but their prices are the TCG prices and may differ a lot.
 
@@ -80,6 +84,7 @@ The setup assistant downloads about 15,000 card images, prepares the recognition
 | `Space` | accept best match |
 | `S` | add to collection (press again for another copy) |
 | `L` | load live prices (uses 1 API request) |
+| `F` | search a card by name |
 | `R` | rescan |
 | `Ctrl+Z` | remove last card from the scan list |
 | `Del` | remove one copy of the selected card from the collection |

@@ -6,7 +6,7 @@
 ; und bleiben beim Deinstallieren erhalten.
 
 #define AppName "DuelScan"
-#define AppVersion "0.1.0"
+#define AppVersion "0.2.0"
 #define AppExe "DuelScan.exe"
 
 [Setup]

@@ -13,13 +13,17 @@ Kostenlos, Open Source, läuft lokal auf deinem PC.
 - **Schnell scannen:** Karte unter die Kamera legen. Sobald sie ruhig liegt, wird sie automatisch erkannt, ohne Klicken.
 - **Lokale KI-Erkennung:** eine Kombination aus Bild-Fingerabdruck und einem kleinen KI-Modell (DINOv2), das auf der **CPU** läuft. Grafikkarte oder Cloud sind nicht nötig.
 - **Wahrscheinlichkeit statt Raten:** Sichere Treffer werden automatisch übernommen. Bei unsicheren siehst du die 3 besten Kandidaten und bestätigst mit `1`/`2`/`3`.
+- **Lernt mit:** Bestätigst oder korrigierst du eine unsichere Karte, merkt sich DuelScan das Bild *deiner* Kamera und erkennt die Karte beim nächsten Mal sicherer.
+- **Suche:** Ist die richtige Karte nicht unter den Vorschlägen, suchst du sie per Name (`F`).
+- **Seltenheits-Vorschlag:** DuelScan wertet die Farbe des Kartennamens aus (normal, silber, gold, regenbogen) und kennt die Seltenheiten, in denen es die Karte gibt. Die wahrscheinlichste wird vorausgewählt, ein Klick bestätigt oder ändert sie.
+- **Genauer Druck:** Set-Code und Edition wählbar (z.B. `DCR-000 Unlimited` statt `BLGG-EN004 1st Edition`), Preis und Link richten sich danach.
 - **Preise:**
   - Cardmarket-„ab“-Preis (EUR)
   - TCGplayer-Tagespreise **pro Seltenheit** (USD), kostenlos und unbegrenzt
   - optional **Live-Preise nach Zustand** (NM/LP/MP/HP/DMG) mit einem kostenlosen [TCG-Price-Lookup](https://tcgpricelookup.com/tcg-api)-Key
 - **Klickbare Preise** führen zu Cardmarket und TCGplayer, und zwar direkt zum günstigsten Druck der gewählten Seltenheit.
-- **Wert-Alarm:** Karten über deiner Schwelle bekommen einen goldenen Rahmen und einen eigenen Ton. Das hilft beim Durchsortieren von Bulk.
-- **Sammlung** mit Anzahl, Seltenheit, Zustand und Gesamtwert, dazu ein **CSV-Export** der Scan-Liste.
+- **Wert-Alarm („Hit“):** Karten über deiner Schwelle bekommen einen goldenen Rahmen und einen eigenen Ton, auch wenn du eine teure Seltenheit oder einen teuren Druck auswählst (Dollar-Preise werden mit dem EZB-Tageskurs umgerechnet).
+- **Sammlung** mit Anzahl, Seltenheit, Druck, Zustand und Gesamtwert, dazu ein **CSV-Export** der Scan-Liste (Duplikate zusammengefasst).
 - **5 Sprachen:** Deutsch, English, Español, Français, Italiano.
 
 ## Voraussetzungen
@@ -61,7 +65,7 @@ Der Einrichtungs-Assistent lädt ca. 15.000 Kartenbilder, bereitet die Erkennung
 
 - **Sehr dunkle oder sehr helle Artworks** (z.B. *Der Anfang vom Ende*, das fast komplett schwarz ist) lassen sich über das Bild schwer unterscheiden. Bei solchen Karten ist die Sicherheit niedriger, und du wählst die richtige Karte aus den Vorschlägen. Eine Erkennung des Kartennamens (OCR) ist geplant.
 - **Starke Spiegelungen bei Foil-Karten** und **glänzende Hüllen** können die Erkennung verschlechtern. Licht von der Seite und matte Hüllen (oder keine Hülle) helfen.
-- **Druck (Set-Code) und Seltenheit werden noch nicht automatisch erkannt**: Die Seltenheit wählst du mit einem Klick.
+- **Der Seltenheits-Vorschlag ist eine Schätzung** anhand der Namensfarbe. Er funktioniert am besten mit gutem, gleichmäßigem Licht. Weiße Schrift und Silber (Rare) sind bei Zauber-, Fallen-, Xyz- und Link-Karten per Webcam schwer zu unterscheiden. **Set-Code und 1. Auflage werden nicht automatisch erkannt**: Du wählst sie in der Liste „Druck“.
 - **TCGplayer-Preise sind US-Marktpreise in Dollar**. Von Cardmarket gibt es nur den „ab“-Preis über alle Versionen.
 - **OCG-Karten (asiatische Drucke)** werden erkannt, ihre Preise sind aber die der TCG-Version und können stark abweichen.
 
@@ -73,6 +77,7 @@ Der Einrichtungs-Assistent lädt ca. 15.000 Kartenbilder, bereitet die Erkennung
 | `Leertaste` | besten Treffer übernehmen |
 | `S` | zur Sammlung (nochmal = weiteres Exemplar) |
 | `L` | Live-Preise laden (kostet 1 API-Anfrage) |
+| `F` | Karte per Name suchen |
 | `R` | neu scannen |
 | `Strg+Z` | letzte Karte aus der Scan-Liste entfernen |
 | `Entf` | ein Exemplar der markierten Karte aus der Sammlung entfernen |
