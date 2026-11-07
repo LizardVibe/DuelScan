@@ -428,7 +428,8 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self, settings: dict, camera: int | None = None):
         super().__init__()
-        self.setWindowTitle(APP_NAME)
+        # Test-/Entwicklungsversionen im Titel kennzeichnen, damit man sie nicht mit der stabilen verwechselt
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION}" if "dev" in APP_VERSION else APP_NAME)
         self.resize(1600, 900)
         self.settings = settings
         if camera is not None:
